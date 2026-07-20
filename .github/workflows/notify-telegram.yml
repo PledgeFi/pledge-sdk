@@ -13,12 +13,38 @@ jobs:
     environment: pledge tg moderator
     if: github.event_name == 'workflow_dispatch' || github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.pull_request.merged == true)
     steps:
+      - name: Check Telegram config
+        env:
+          S_TOKEN_PRIMARY: ${{ secrets.TELEGRAM_NOTIFY_BOT_TOKEN }}
+          S_TOKEN_FALLBACK: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          S_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          S_TOPIC_ID: ${{ secrets.TELEGRAM_TOPIC_ID }}
+          V_TOKEN_PRIMARY: ${{ vars.TELEGRAM_NOTIFY_BOT_TOKEN }}
+          V_TOKEN_FALLBACK: ${{ vars.TELEGRAM_BOT_TOKEN }}
+          V_CHAT_ID: ${{ vars.TELEGRAM_CHAT_ID }}
+          V_TOPIC_ID: ${{ vars.TELEGRAM_TOPIC_ID }}
+        run: |
+          status() { [ -n "${!1}" ] && echo "$1: set" || echo "$1: missing"; }
+          echo "Checking secrets and variables (values hidden):"
+          status S_TOKEN_PRIMARY
+          status S_TOKEN_FALLBACK
+          status S_CHAT_ID
+          status S_TOPIC_ID
+          status V_TOKEN_PRIMARY
+          status V_TOKEN_FALLBACK
+          status V_CHAT_ID
+          status V_TOPIC_ID
+
       - name: Send update to Telegram topic
         env:
-          NOTIFY_TOKEN_PRIMARY: ${{ secrets.TELEGRAM_NOTIFY_BOT_TOKEN }}
-          NOTIFY_TOKEN_FALLBACK: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-          TOPIC_ID: ${{ secrets.TELEGRAM_TOPIC_ID }}
+          S_TOKEN_PRIMARY: ${{ secrets.TELEGRAM_NOTIFY_BOT_TOKEN }}
+          S_TOKEN_FALLBACK: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          S_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          S_TOPIC_ID: ${{ secrets.TELEGRAM_TOPIC_ID }}
+          V_TOKEN_PRIMARY: ${{ vars.TELEGRAM_NOTIFY_BOT_TOKEN }}
+          V_TOKEN_FALLBACK: ${{ vars.TELEGRAM_BOT_TOKEN }}
+          V_CHAT_ID: ${{ vars.TELEGRAM_CHAT_ID }}
+          V_TOPIC_ID: ${{ vars.TELEGRAM_TOPIC_ID }}
           EVENT_NAME: ${{ github.event_name }}
           REPO: ${{ github.repository }}
           BRANCH: ${{ github.ref_name }}
@@ -46,10 +72,22 @@ jobs:
           PR_BASE: ${{ github.event.pull_request.base.ref }}
           PR_HEAD: ${{ github.event.pull_request.head.ref }}
         run: |
-          export NOTIFY_BOT_TOKEN="${NOTIFY_TOKEN_PRIMARY:-$NOTIFY_TOKEN_FALLBACK}"
-          if [ -z "$NOTIFY_BOT_TOKEN" ] || [ -z "$CHAT_ID" ] || [ -z "$TOPIC_ID" ]; then
-            echo "::error::Set TELEGRAM_NOTIFY_BOT_TOKEN, TELEGRAM_CHAT_ID, TELEGRAM_TOPIC_ID"
+          export NOTIFY_BOT_TOKEN="${S_TOKEN_PRIMARY:-${V_TOKEN_PRIMARY:-${S_TOKEN_FALLBACK:-$V_TOKEN_FALLBACK}}}"
+          export CHAT_ID="${S_CHAT_ID:-$V_CHAT_ID}"
+          export TOPIC_ID="${S_TOPIC_ID:-$V_TOPIC_ID}"
+
+          missing=()
+          [ -z "$NOTIFY_BOT_TOKEN" ] && missing+=("TELEGRAM_NOTIFY_BOT_TOKEN or TELEGRAM_BOT_TOKEN")
+          [ -z "$CHAT_ID" ] && missing+=("TELEGRAM_CHAT_ID")
+          if [ ${#missing[@]} -gt 0 ]; then
+            echo "::error::Missing: ${missing[*]}"
+            echo "Add as Secrets (recommended) or Variables with exact names under:"
+            echo "  Settings → Environments → pledge tg moderator"
+            echo "  or Settings → Secrets and variables → Actions"
             exit 1
+          fi
+          if [ -z "$TOPIC_ID" ]; then
+            echo "TOPIC_ID not set; sending to main chat (no forum topic)."
           fi
 
           python3 <<'PY'
@@ -69,7 +107,8 @@ jobs:
 
           TOKEN = os.environ["NOTIFY_BOT_TOKEN"]
           CHAT_ID = os.environ["CHAT_ID"]
-          TOPIC_ID = int(os.environ["TOPIC_ID"])
+          topic_raw = (os.environ.get("TOPIC_ID") or "").strip()
+          TOPIC_ID = int(topic_raw) if topic_raw else None
           API = f"https://api.telegram.org/bot{TOKEN}"
 
           event = os.environ.get("EVENT_NAME", "push")
@@ -235,16 +274,19 @@ jobs:
 
           payload = {
               "chat_id": CHAT_ID,
-              "message_thread_id": TOPIC_ID,
               "parse_mode": "HTML",
               "text": text,
               "disable_web_page_preview": True,
           }
+          if TOPIC_ID is not None:
+              payload["message_thread_id"] = TOPIC_ID
           if buttons:
               payload["reply_markup"] = {"inline_keyboard": buttons}
           try:
               result = call("sendMessage", payload)
           except Exception as err:
+              if TOPIC_ID is None:
+                  raise
               print(f"Topic send failed: {err}", file=sys.stderr)
               payload.pop("message_thread_id", None)
               result = call("sendMessage", payload)
