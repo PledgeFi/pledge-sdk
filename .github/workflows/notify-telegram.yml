@@ -15,34 +15,46 @@ jobs:
     steps:
       - name: Check Telegram config
         env:
-          S_TOKEN_PRIMARY: ${{ secrets.TELEGRAM_NOTIFY_BOT_TOKEN }}
-          S_TOKEN_FALLBACK: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          S_TELEGRAM_NOTIFY: ${{ secrets.TELEGRAM_NOTIFY_BOT_TOKEN }}
+          S_NOTIFY: ${{ secrets.NOTIFY_BOT_TOKEN }}
+          S_TELEGRAM_BOT: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          S_BOT: ${{ secrets.BOT_TOKEN }}
           S_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           S_TOPIC_ID: ${{ secrets.TELEGRAM_TOPIC_ID }}
-          V_TOKEN_PRIMARY: ${{ vars.TELEGRAM_NOTIFY_BOT_TOKEN }}
-          V_TOKEN_FALLBACK: ${{ vars.TELEGRAM_BOT_TOKEN }}
+          V_TELEGRAM_NOTIFY: ${{ vars.TELEGRAM_NOTIFY_BOT_TOKEN }}
+          V_NOTIFY: ${{ vars.NOTIFY_BOT_TOKEN }}
+          V_TELEGRAM_BOT: ${{ vars.TELEGRAM_BOT_TOKEN }}
+          V_BOT: ${{ vars.BOT_TOKEN }}
           V_CHAT_ID: ${{ vars.TELEGRAM_CHAT_ID }}
           V_TOPIC_ID: ${{ vars.TELEGRAM_TOPIC_ID }}
         run: |
           status() { [ -n "${!1}" ] && echo "$1: set" || echo "$1: missing"; }
           echo "Checking secrets and variables (values hidden):"
-          status S_TOKEN_PRIMARY
-          status S_TOKEN_FALLBACK
+          status S_TELEGRAM_NOTIFY
+          status S_NOTIFY
+          status S_TELEGRAM_BOT
+          status S_BOT
           status S_CHAT_ID
           status S_TOPIC_ID
-          status V_TOKEN_PRIMARY
-          status V_TOKEN_FALLBACK
+          status V_TELEGRAM_NOTIFY
+          status V_NOTIFY
+          status V_TELEGRAM_BOT
+          status V_BOT
           status V_CHAT_ID
           status V_TOPIC_ID
 
       - name: Send update to Telegram topic
         env:
-          S_TOKEN_PRIMARY: ${{ secrets.TELEGRAM_NOTIFY_BOT_TOKEN }}
-          S_TOKEN_FALLBACK: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          S_TELEGRAM_NOTIFY: ${{ secrets.TELEGRAM_NOTIFY_BOT_TOKEN }}
+          S_NOTIFY: ${{ secrets.NOTIFY_BOT_TOKEN }}
+          S_TELEGRAM_BOT: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          S_BOT: ${{ secrets.BOT_TOKEN }}
           S_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           S_TOPIC_ID: ${{ secrets.TELEGRAM_TOPIC_ID }}
-          V_TOKEN_PRIMARY: ${{ vars.TELEGRAM_NOTIFY_BOT_TOKEN }}
-          V_TOKEN_FALLBACK: ${{ vars.TELEGRAM_BOT_TOKEN }}
+          V_TELEGRAM_NOTIFY: ${{ vars.TELEGRAM_NOTIFY_BOT_TOKEN }}
+          V_NOTIFY: ${{ vars.NOTIFY_BOT_TOKEN }}
+          V_TELEGRAM_BOT: ${{ vars.TELEGRAM_BOT_TOKEN }}
+          V_BOT: ${{ vars.BOT_TOKEN }}
           V_CHAT_ID: ${{ vars.TELEGRAM_CHAT_ID }}
           V_TOPIC_ID: ${{ vars.TELEGRAM_TOPIC_ID }}
           EVENT_NAME: ${{ github.event_name }}
@@ -72,12 +84,12 @@ jobs:
           PR_BASE: ${{ github.event.pull_request.base.ref }}
           PR_HEAD: ${{ github.event.pull_request.head.ref }}
         run: |
-          export NOTIFY_BOT_TOKEN="${S_TOKEN_PRIMARY:-${V_TOKEN_PRIMARY:-${S_TOKEN_FALLBACK:-$V_TOKEN_FALLBACK}}}"
+          export NOTIFY_BOT_TOKEN="${S_TELEGRAM_NOTIFY:-${S_NOTIFY:-${S_TELEGRAM_BOT:-${S_BOT:-${V_TELEGRAM_NOTIFY:-${V_NOTIFY:-${V_TELEGRAM_BOT:-$V_BOT}}}}}}}"
           export CHAT_ID="${S_CHAT_ID:-$V_CHAT_ID}"
           export TOPIC_ID="${S_TOPIC_ID:-$V_TOPIC_ID}"
 
           missing=()
-          [ -z "$NOTIFY_BOT_TOKEN" ] && missing+=("TELEGRAM_NOTIFY_BOT_TOKEN or TELEGRAM_BOT_TOKEN")
+          [ -z "$NOTIFY_BOT_TOKEN" ] && missing+=("bot token (NOTIFY_BOT_TOKEN, BOT_TOKEN, TELEGRAM_NOTIFY_BOT_TOKEN, or TELEGRAM_BOT_TOKEN)")
           [ -z "$CHAT_ID" ] && missing+=("TELEGRAM_CHAT_ID")
           if [ ${#missing[@]} -gt 0 ]; then
             echo "::error::Missing: ${missing[*]}"
